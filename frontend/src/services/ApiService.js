@@ -141,6 +141,7 @@ class ApiService {
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
+          console.log("Streaming connection established successfully");
 
           // Get a reader from the response body
           const reader = response.body.getReader();
@@ -167,7 +168,10 @@ class ApiService {
                   const data = JSON.parse(line);
 
                   // Handle different message types
+                  console.log("Received data:", data);
+
                   if (data.type === 'metadata') {
+                    console.log("Received metadata:", data);
                     responseData.thinking = data.thinking || '';
                     responseData.model = data.model || '';
                     responseData.usedWebSearch = data.usedWebSearch || false;
@@ -177,6 +181,7 @@ class ApiService {
                     onThinking(responseData.thinking);
                   }
                   else if (data.type === 'chunk') {
+                    console.log("Received chunk:", data.content);
                     // Append the chunk to the response
                     responseData.response += data.content || '';
 
@@ -184,6 +189,7 @@ class ApiService {
                     onChunk(data.content, responseData.response);
                   }
                   else if (data.type === 'done') {
+                    console.log("Received done signal:", data);
                     // Update final response data
                     responseData.response = data.response || responseData.response;
                     responseData.processingTime = data.processingTime || 0;
@@ -191,6 +197,11 @@ class ApiService {
                     // Call the done callback
                     onDone(responseData);
                     resolve(responseData);
+                    return;
+                  }
+                  else if (data.type === 'error') {
+                    console.error("Received error from server:", data.message);
+                    reject(new Error(data.message || "Unknown streaming error"));
                     return;
                   }
                 } catch (error) {

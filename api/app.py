@@ -564,12 +564,24 @@ def stream_query():
             full_response = ""
 
             # Use Ollama's streaming capability
-            for chunk in llama_model.stream(enhanced_query):
-                full_response += chunk
-                # Send each chunk as it arrives
+            try:
+                for chunk in llama_model.stream(enhanced_query):
+                    if chunk:  # Ensure chunk is not empty
+                        full_response += chunk
+                        # Send each chunk as it arrives
+                        chunk_data = json.dumps({
+                            "type": "chunk",
+                            "content": chunk
+                        }) + "\n"
+                        yield chunk_data
+                        # Flush to ensure immediate delivery
+                        time.sleep(0.01)  # Small delay to prevent overwhelming the client
+            except Exception as e:
+                logger.error(f"Error during streaming: {str(e)}")
+                # Send error notification
                 yield json.dumps({
-                    "type": "chunk",
-                    "content": chunk
+                    "type": "error",
+                    "message": f"Error during streaming: {str(e)}"
                 }) + "\n"
 
             # Calculate elapsed time

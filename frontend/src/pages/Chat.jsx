@@ -282,11 +282,11 @@ const Chat = () => {
       // Supprimer le message de streaming en cas d'erreur
       removeMessage(aiResponseId);
 
-      // Ajout d'un message d'erreur
+      // Ajout d'un message d'erreur avec plus de détails
       addMessage({
         id: `error-${Date.now()}`,
         type: MessageType.ERROR,
-        content: "Désolé, une erreur s'est produite lors du traitement de votre message. Veuillez réessayer.",
+        content: `Désolé, une erreur s'est produite lors du traitement de votre message: ${error.message}. Veuillez réessayer.`,
         timestamp: new Date(),
       });
 
@@ -468,9 +468,9 @@ const Chat = () => {
                 sx={{
                   background: theme.palette.neocortex.gradient1,
                 }}
-                alt="NeoCortex"
+                alt="NeoMaxAI1"
               >
-                NC
+                NM
               </Avatar>
             </Badge>
             <Box sx={{ ml: 2, maxWidth: '80%' }}>
@@ -489,7 +489,7 @@ const Chat = () => {
                 {message.typing ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" color="text.secondary">
-                      NeoCortex réfléchit
+                      NeoMaxAI1 réfléchit
                     </Typography>
                     <Box
                       sx={{
