@@ -168,8 +168,6 @@ class ApiService {
                   const data = JSON.parse(line);
 
                   // Handle different message types
-                  console.log("Received data:", data);
-
                   if (data.type === 'metadata') {
                     console.log("Received metadata:", data);
                     responseData.thinking = data.thinking || '';
@@ -181,15 +179,17 @@ class ApiService {
                     onThinking(responseData.thinking);
                   }
                   else if (data.type === 'chunk') {
-                    console.log("Received chunk:", data.content);
                     // Append the chunk to the response
                     responseData.response += data.content || '';
 
-                    // Call the chunk callback
-                    onChunk(data.content, responseData.response);
+                    // Call the chunk callback with a small delay to simulate natural typing
+                    // This creates a more realistic streaming effect like ChatGPT
+                    setTimeout(() => {
+                      onChunk(data.content, responseData.response);
+                    }, Math.random() * 10); // Random small delay between 0-10ms
                   }
                   else if (data.type === 'done') {
-                    console.log("Received done signal:", data);
+                    console.log("Received done signal");
                     // Update final response data
                     responseData.response = data.response || responseData.response;
                     responseData.processingTime = data.processingTime || 0;
@@ -203,6 +203,11 @@ class ApiService {
                     console.error("Received error from server:", data.message);
                     reject(new Error(data.message || "Unknown streaming error"));
                     return;
+                  }
+                  else if (data.type === 'thinking_update') {
+                    // Handle incremental thinking updates
+                    responseData.thinking = data.thinking || responseData.thinking;
+                    onThinking(responseData.thinking);
                   }
                 } catch (error) {
                   console.error('Error parsing streaming response:', error, line);

@@ -47,6 +47,7 @@ import ThinkingDisplay from '../components/chat/ThinkingDisplay';
 import Terminal from '../components/terminal/Terminal';
 import FileExplorer from '../components/filesystem/FileExplorer';
 import WebBrowser from '../components/browser/WebBrowser';
+import AIComputer from '../components/ai/AIComputer';
 
 // Context
 import { useChat, MessageType } from '../context/ChatContext';
@@ -96,6 +97,7 @@ const Chat = () => {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [fileExplorerOpen, setFileExplorerOpen] = useState(false);
   const [webBrowserOpen, setWebBrowserOpen] = useState(false);
+  const [aiComputerOpen, setAiComputerOpen] = useState(false);
   const [screenshotData, setScreenshotData] = useState(null);
 
   // Destructure chat settings for easier access
@@ -486,39 +488,64 @@ const Chat = () => {
                 }}
                 onContextMenu={(e) => handleContextMenu(e, message)}
               >
-                {message.typing ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      NeoMaxAI1 réfléchit
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                      }}
-                    >
-                      {[0, 1, 2].map((i) => (
-                        <Box
-                          key={i}
-                          component={motion.div}
-                          sx={{
-                            width: 5,
-                            height: 5,
-                            borderRadius: '50%',
-                            bgcolor: 'text.secondary',
-                          }}
-                          animate={{
-                            y: [0, -5, 0],
-                          }}
-                          transition={{
-                            duration: 0.6,
-                            repeat: Infinity,
-                            delay: i * 0.2,
-                          }}
-                        />
-                      ))}
+                {message.streaming ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        NeoMaxAI1 est en train d'écrire
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {[0, 1, 2].map((i) => (
+                          <Box
+                            key={i}
+                            component={motion.div}
+                            sx={{
+                              width: 4,
+                              height: 4,
+                              borderRadius: '50%',
+                              bgcolor: 'text.secondary',
+                            }}
+                            animate={{
+                              y: [0, -3, 0],
+                            }}
+                            transition={{
+                              duration: 0.6,
+                              repeat: Infinity,
+                              delay: i * 0.2,
+                            }}
+                          />
+                        ))}
+                      </Box>
                     </Box>
+
+                    {message.content && (
+                      <Box sx={{ wordBreak: 'break-word' }}>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code({ node, inline, className, children, ...props }) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              return !inline && match ? (
+                                <SyntaxHighlighter
+                                  style={theme.palette.mode === 'dark' ? oneDark : oneLight}
+                                  language={match[1]}
+                                  PreTag="div"
+                                  {...props}
+                                >
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              ) : (
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              );
+                            },
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </Box>
+                    )}
                   </Box>
                 ) : (
                   <Box>
@@ -858,6 +885,15 @@ const Chat = () => {
             Shift + Enter pour une nouvelle ligne
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
+            <Tooltip title="Ordinateur virtuel de l'IA">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => setAiComputerOpen(true)}
+              >
+                <MemoryIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Effacer la conversation">
               <IconButton
                 size="small"
@@ -869,6 +905,7 @@ const Chat = () => {
                     setTerminalOpen(false);
                     setFileExplorerOpen(false);
                     setWebBrowserOpen(false);
+                    setAiComputerOpen(false);
                   }
                 }}
               >
@@ -970,6 +1007,25 @@ const Chat = () => {
             }}
           />
         </Box>
+      )}
+
+      {/* AI Computer */}
+      {aiComputerOpen && (
+        <Dialog
+          open={aiComputerOpen}
+          onClose={() => setAiComputerOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              overflow: 'hidden',
+              height: '80vh',
+            }
+          }}
+        >
+          <AIComputer onClose={() => setAiComputerOpen(false)} />
+        </Dialog>
       )}
 
       {/* Menu contextuel pour les actions sur les messages */}

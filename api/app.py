@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import threading
 import time
 import requests
+import uuid
+import random
 
 # Import route blueprints
 try:
@@ -62,6 +64,9 @@ logger = logging.getLogger(__name__)
 # Dossiers nécessaires
 for directory in ["data", "data/tasks", "data/memories", "data/sessions", "config"]:
     os.makedirs(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), directory), exist_ok=True)
+
+# Dictionnaire pour suivre les requêtes de streaming actives
+active_streams = {}
 
 # Initialisation des modules
 try:
@@ -563,19 +568,77 @@ def stream_query():
             # Generate streaming response
             full_response = ""
 
-            # Use Ollama's streaming capability
+            # Track active streaming requests
+            request_id = str(uuid.uuid4())
+            active_streams[request_id] = True
+
+            # Send thinking updates periodically
+            def thinking_updater():
+                thinking_steps = thinking_text.split("\n")
+                current_thinking = ""
+                for i, step in enumerate(thinking_steps):
+                    if not active_streams.get(request_id, False):
+                        break
+                    current_thinking += step + "\n"
+                    if i > 0 and i % 3 == 0:  # Send update every 3 steps
+                        try:
+                            yield json.dumps({
+                                "type": "thinking_update",
+                                "thinking": current_thinking
+                            }) + "\n"
+                            time.sleep(0.5)
+                        except:
+                            break
+
+            # Start thinking updater in a separate thread
+            thinking_thread = threading.Thread(target=lambda: list(thinking_updater()))
+            thinking_thread.daemon = True
+            thinking_thread.start()
+
+            # Use Ollama's streaming capability with improved chunking
             try:
+                buffer = ""
+                word_count = 0
+
                 for chunk in llama_model.stream(enhanced_query):
+                    if not active_streams.get(request_id, False):
+                        # Request was cancelled (e.g., page refresh)
+                        logger.info(f"Streaming request {request_id} was cancelled")
+                        break
+
                     if chunk:  # Ensure chunk is not empty
+                        buffer += chunk
                         full_response += chunk
-                        # Send each chunk as it arrives
-                        chunk_data = json.dumps({
-                            "type": "chunk",
-                            "content": chunk
-                        }) + "\n"
-                        yield chunk_data
-                        # Flush to ensure immediate delivery
-                        time.sleep(0.01)  # Small delay to prevent overwhelming the client
+
+                        # Send chunks in natural word boundaries for more natural streaming
+                        # This simulates how ChatGPT streams responses
+                        words = buffer.split(" ")
+
+                        if len(words) > 3 or "." in buffer or "," in buffer or "\n" in buffer:
+                            # Send accumulated buffer
+                            chunk_data = json.dumps({
+                                "type": "chunk",
+                                "content": buffer
+                            }) + "\n"
+                            yield chunk_data
+                            buffer = ""
+
+                            # Add small random delay for natural typing feel
+                            word_count += len(words)
+                            if word_count >= 10:
+                                word_count = 0
+                                time.sleep(random.uniform(0.05, 0.15))
+                            else:
+                                time.sleep(random.uniform(0.01, 0.03))
+
+                # Send any remaining buffer
+                if buffer:
+                    chunk_data = json.dumps({
+                        "type": "chunk",
+                        "content": buffer
+                    }) + "\n"
+                    yield chunk_data
+
             except Exception as e:
                 logger.error(f"Error during streaming: {str(e)}")
                 # Send error notification
@@ -583,6 +646,9 @@ def stream_query():
                     "type": "error",
                     "message": f"Error during streaming: {str(e)}"
                 }) + "\n"
+
+            # Remove from active streams
+            active_streams.pop(request_id, None)
 
             # Calculate elapsed time
             elapsed_time = time.time() - start_time
