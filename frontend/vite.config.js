@@ -1,10 +1,19 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import removeReactDevToolsPlugin from './vite-plugin-remove-react-devtools';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  // Force production mode to disable React DevTools messages
+  mode: 'production',
+  define: {
+    'process.env.NODE_ENV': '"production"',
+  },
+  plugins: [
+    removeReactDevToolsPlugin(),
+    react()
+  ],
   base: './', // Ajout d'une base URL relative
   resolve: {
     alias: {
@@ -35,7 +44,7 @@ export default defineConfig({
   build: {
     // Augmenter la limite d'avertissement pour les chunks à 1000 Ko (au lieu de 500 Ko par défaut)
     chunkSizeWarningLimit: 100000,
-    
+
     // Configuration des options Rollup pour le découpage du code
     rollupOptions: {
       output: {
@@ -47,10 +56,10 @@ export default defineConfig({
         },
       },
     },
-    
+
     // Optimisation du CSS
     cssCodeSplit: true,
-    
+
     // Minimisation pour la production
     minify: 'terser',
     terserOptions: {

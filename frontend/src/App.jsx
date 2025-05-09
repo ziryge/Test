@@ -12,7 +12,7 @@ import MainLayout from './components/layouts/MainLayout';
 // Pages
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
-import MultiAgent from './pages/MultiAgent';
+// MultiAgent import removed as the feature is no longer used
 import TasksPage from './pages/Tasks';
 import Settings from './pages/Settings';
 
@@ -37,8 +37,17 @@ const App = () => {
       try {
         setIsLoading(true);
         const status = await ApiService.getStatus();
-        setSystemStatus(status);
-        setError(null);
+
+        // Check if we got a valid status response
+        if (status && status.status !== 'error') {
+          setSystemStatus(status);
+          setError(null);
+        } else if (status && status.status === 'error') {
+          console.warn('System status returned an error:', status.error);
+          // Don't set error state here to allow the app to continue functioning
+          // Just update the system status to show the error
+          setSystemStatus(status);
+        }
       } catch (err) {
         console.error('Erreur lors de la vérification du statut système:', err);
         setError("Impossible de se connecter au serveur NeoCortex. Veuillez vérifier que le backend est en cours d'exécution.");
@@ -47,12 +56,23 @@ const App = () => {
       }
     };
 
+    // Initial check
     checkSystemStatus();
 
-    // Vérifier périodiquement le statut du système
-    const intervalId = setInterval(checkSystemStatus, 60000);
+    // Vérifier périodiquement le statut du système, but with a shorter interval
+    // to ensure we recover quickly from temporary issues
+    const intervalId = setInterval(checkSystemStatus, 30000);
 
     return () => clearInterval(intervalId);
+  }, []);
+
+  // Clean up resources when the app is unmounted
+  useEffect(() => {
+    // This will run when the component is unmounted
+    return () => {
+      // Clean up ApiService resources
+      ApiService.cleanup();
+    };
   }, []);
 
   if (isLoading) {
@@ -125,11 +145,7 @@ const App = () => {
               <Chat />
             </MainLayout>
           } />
-          <Route path="/multi-agent" element={
-            <MainLayout systemStatus={systemStatus}>
-              <MultiAgent />
-            </MainLayout>
-          } />
+          {/* Multi-agent route removed as requested */}
           <Route path="/tasks" element={
             <MainLayout systemStatus={systemStatus}>
               <TasksPage />

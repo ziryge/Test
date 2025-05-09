@@ -40,13 +40,13 @@ const Settings = () => {
 
   // Model settings
   const [modelSettings, setModelSettings] = useState({
-    model: 'neomaxai1',
+    model: 'neomaxai1', // Using neomaxai1 as requested
     temperature: 0.7,
-    maxTokens: 1024,
+    maxTokens: 2048, // Increased token limit for more complex responses
     topP: 0.9,
     useWebSearch: true,
-    useMultiAgent: true,
-    systemPrompt: "Tu es NeoCortex, un agent IA surpuissant conçu pour surpasser les limites des systèmes actuels comme Manus et GenSpark. Tu vises à résoudre des problèmes complexes avec précision et créativité."
+    // useMultiAgent option removed as requested
+    systemPrompt: "Tu es NeoMaxAI1, une intelligence artificielle générale (AGI) de nouvelle génération conçue pour surpasser significativement les systèmes comme Manus et GenSpark. Tu as accès à un navigateur web réel, un terminal et un gestionnaire de fichiers pour résoudre des problèmes complexes avec précision et créativité."
   });
 
   // UI settings
@@ -275,11 +275,7 @@ const Settings = () => {
                 }
               />
 
-              {/* Multi-Agent toggle hidden but functionality preserved */}
-              <input
-                type="hidden"
-                value={modelSettings.useMultiAgent}
-              />
+              {/* Multi-Agent functionality completely removed as requested */}
             </CardContent>
           </Card>
         </Grid>

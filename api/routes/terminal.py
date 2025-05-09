@@ -2,6 +2,7 @@ import os
 import subprocess
 import logging
 import shlex
+import sys
 from flask import Blueprint, request, jsonify
 
 # Set up logging
@@ -11,10 +12,14 @@ logger = logging.getLogger(__name__)
 terminal_bp = Blueprint('terminal', __name__)
 
 # Define workspace directory (can be configured)
-WORKSPACE_DIR = os.environ.get('WORKSPACE_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'workspace'))
+# Use the actual system's home directory for the AI workspace
+WORKSPACE_DIR = os.environ.get('WORKSPACE_DIR', os.path.join(os.path.expanduser('~'), 'workspace/ai_workspace'))
 
 # Ensure workspace directory exists
 os.makedirs(WORKSPACE_DIR, exist_ok=True)
+
+# Log the workspace directory
+logger.info(f"AI workspace directory: {WORKSPACE_DIR}")
 
 @terminal_bp.route('/execute', methods=['POST'])
 def execute_command():
@@ -23,25 +28,27 @@ def execute_command():
         data = request.json
         if not data or 'command' not in data:
             return jsonify({"error": "Missing 'command' parameter"}), 400
-        
+
         command = data['command']
-        
-        # For security, we could implement a whitelist of allowed commands
-        # or block certain dangerous commands
-        
-        # Execute command in workspace directory
+
+        # Log the command being executed
+        logger.info(f"Executing command: {command}")
+
+        # Execute command in workspace directory using the real system terminal
+        # This will use the actual system terminal with full capabilities
         process = subprocess.Popen(
             command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=WORKSPACE_DIR,
-            text=True
+            text=True,
+            env=os.environ.copy()  # Use the current environment variables
         )
-        
+
         # Get output with timeout
         try:
-            stdout, stderr = process.communicate(timeout=30)
+            stdout, stderr = process.communicate(timeout=60)  # Increased timeout for longer operations
             return_code = process.returncode
         except subprocess.TimeoutExpired:
             process.kill()
@@ -53,7 +60,10 @@ def execute_command():
                 "stderr": stderr,
                 "return_code": -1
             }), 408
-        
+
+        # Log the command result
+        logger.info(f"Command executed with return code: {return_code}")
+
         return jsonify({
             "success": return_code == 0,
             "stdout": stdout,
@@ -72,16 +82,16 @@ def execute_script():
         data = request.json
         if not data or 'path' not in data:
             return jsonify({"error": "Missing 'path' parameter"}), 400
-        
+
         script_path = os.path.join(WORKSPACE_DIR, data['path'])
-        
+
         # Check if script exists
         if not os.path.exists(script_path) or not os.path.isfile(script_path):
             return jsonify({"error": "Script not found"}), 404
-        
+
         # Make script executable
         os.chmod(script_path, 0o755)
-        
+
         # Execute script
         process = subprocess.Popen(
             script_path,
@@ -91,7 +101,7 @@ def execute_script():
             cwd=WORKSPACE_DIR,
             text=True
         )
-        
+
         # Get output with timeout
         try:
             stdout, stderr = process.communicate(timeout=30)
@@ -106,7 +116,7 @@ def execute_script():
                 "stderr": stderr,
                 "return_code": -1
             }), 408
-        
+
         return jsonify({
             "success": return_code == 0,
             "stdout": stdout,

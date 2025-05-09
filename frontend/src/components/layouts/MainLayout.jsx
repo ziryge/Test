@@ -2,12 +2,10 @@ import React, { useState, useRef, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
-  Drawer,
   AppBar,
   Toolbar,
   List,
   Typography,
-  Divider,
   IconButton,
   ListItem,
   ListItemIcon,
@@ -15,13 +13,13 @@ import {
   Avatar,
   useTheme,
   useMediaQuery,
-  Tooltip
+  Tooltip,
+  Drawer
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   Chat as ChatIcon,
-  Psychology as PsychologyIcon,
   Task as TaskIcon,
   Memory as MemoryIcon,
   Settings as SettingsIcon,
@@ -30,10 +28,10 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { ThemeUpdateContext } from '../../context/ThemeContext';
+import ResizableSidebar from './ResizableSidebar';
 
 // Largeur de la barre latérale
 const DRAWER_WIDTH = 280;
-const COLLAPSED_DRAWER_WIDTH = 70;
 
 const MainLayout = ({ children, systemStatus }) => {
   const theme = useTheme();
@@ -93,13 +91,6 @@ const MainLayout = ({ children, systemStatus }) => {
       clearTimeout(hoverTimerRef.current);
     }
     setIsDrawerVisible(true);
-  };
-
-  // Fonction pour gérer la sortie du hover
-  const handleHoverLeave = () => {
-    hoverTimerRef.current = setTimeout(() => {
-      setIsDrawerVisible(false);
-    }, 300); // Délai avant de cacher le drawer
   };
 
   // Fonction pour naviguer et fermer le drawer sur mobile
@@ -520,98 +511,34 @@ const MainLayout = ({ children, systemStatus }) => {
         )}
       </Box>
 
-      {/* Drawer permanent pour desktop */}
-      <Drawer
-        variant="permanent"
-        sx={{
-          display: { xs: 'none', sm: 'block' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: isDrawerCollapsed ? COLLAPSED_DRAWER_WIDTH : DRAWER_WIDTH,
-            borderRight: `1px solid ${theme.palette.divider}`,
-            bgcolor: theme.palette.neocortex.sidebar.background,
-            transition: theme.transitions.create(['width', 'transform', 'box-shadow', 'opacity'], {
-              easing: theme.transitions.easing.easeOut,
-              duration: theme.transitions.duration.standard,
-            }),
-            overflowX: 'hidden',
-            transform: isDrawerVisible ? 'translateX(0)' : 'translateX(-100%)',
-            visibility: 'visible', // Always keep it in the DOM
-            opacity: isDrawerVisible ? 1 : 0.95,
-            // Only show box-shadow when visible
-            boxShadow: isDrawerVisible ? theme.shadows[8] : 'none',
-          },
-        }}
-        open
-        onMouseEnter={handleHoverEnter}
-        onMouseLeave={handleHoverLeave}
-      >
-        {drawerContent}
-
-        {/* Toggle drawer size button */}
-        <Box
-          sx={{
-            position: 'absolute',
-            right: -12,
-            top: '50%',
-            zIndex: 1300,
-            transform: 'translateY(-50%)',
-            backgroundColor: theme.palette.background.paper,
-            borderRadius: '50%',
-            boxShadow: theme.shadows[3],
-            width: 24,
-            height: 24,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer'
-          }}
-          onClick={toggleDrawerSize}
+      {/* Resizable sidebar for desktop */}
+      <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+        <ResizableSidebar
+          open={!isDrawerCollapsed}
+          onToggle={toggleDrawerSize}
+          hideByDefault={true}
         >
-          <Box
-            component="span"
-            sx={{
-              fontSize: '14px',
-              transform: isDrawerCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-              transition: 'transform 0.3s ease',
-              display: 'flex'
-            }}
-          >
-            {'❯'}
-          </Box>
-        </Box>
-      </Drawer>
+          {drawerContent}
+        </ResizableSidebar>
+      </Box>
 
       {/* Zone de contenu principal */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          width: {
-            xs: '100%',
-            sm: isDrawerVisible
-              ? (isDrawerCollapsed
-                ? `calc(100% - ${COLLAPSED_DRAWER_WIDTH}px)`
-                : `calc(100% - ${DRAWER_WIDTH}px)`)
-              : '100%'
-          },
+          width: '100%',
           height: '100vh',
           overflow: 'auto',
-          bgcolor: theme.palette.neocortex.mainContent.background,
+          bgcolor: theme.palette.neocortex?.mainContent?.background || theme.palette.background.default,
           pt: { xs: 7, sm: 2 },  // Added padding-top for desktop view
           pl: { sm: 2 },         // Added left padding for better spacing
           pr: { xs: 2, sm: 3 },  // Added right padding
           boxSizing: 'border-box',// Ensure padding is included in width calculations
-          transition: theme.transitions.create(['width', 'margin', 'padding', 'left'], {
+          transition: theme.transitions.create(['width', 'margin', 'padding'], {
             easing: theme.transitions.easing.easeOut,
             duration: theme.transitions.duration.standard,
           }),
-          ml: {
-            xs: 0,
-            sm: isDrawerVisible
-              ? (isDrawerCollapsed ? COLLAPSED_DRAWER_WIDTH : DRAWER_WIDTH)
-              : 0
-          },
         }}
       >
         {children}
