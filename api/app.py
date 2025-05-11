@@ -11,25 +11,21 @@ import time
 import requests
 import uuid
 import random
+import asyncio
+
+# Ajout du chemin racine au path pour les imports
+# This needs to be before any modules import
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import route blueprints
-try:
-    from routes.filesystem import filesystem_bp
-    from routes.terminal import terminal_bp
-    from routes.browser import browser_bp
-    from routes.auth import auth_bp, SESSION_SECRET, SESSION_LIFETIME
-except ImportError:
-    # If imported directly, adjust the import path
-    from api.routes.filesystem import filesystem_bp
-    from api.routes.terminal import terminal_bp
-    from api.routes.browser import browser_bp
-    from api.routes.auth import auth_bp, SESSION_SECRET, SESSION_LIFETIME
+from routes.filesystem import filesystem_bp
+from routes.terminal import terminal_bp
+from routes.browser import browser_bp
+from routes.auth import auth_bp, SESSION_SECRET, SESSION_LIFETIME
+from routes.chat import chat_bp
 
 # Charger les variables d'environnement
 load_dotenv()
-
-# Ajout du chemin racine au path pour les imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.llama_integration import LlamaModel
 from modules.web_scraper import WebResearcher
@@ -38,8 +34,11 @@ from modules.content_generator import ContentGenerator
 from modules.memory_manager import MemoryManager
 from modules.agent_orchestrator import AgentOrchestrator
 from modules.multiagent_system import MultiAgentSystem
+from modules.browser_integration import browser_manager
 
-app = Flask(__name__, static_folder='../frontend/dist')
+# Set the static folder to the frontend/dist directory
+static_folder_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'dist')
+app = Flask(__name__, static_folder=static_folder_path, static_url_path='')
 # Apply CORS globally with more permissive settings
 CORS(app, supports_credentials=True, origins=["*"])
 
@@ -54,6 +53,7 @@ app.register_blueprint(filesystem_bp, url_prefix='/api/filesystem')
 app.register_blueprint(terminal_bp, url_prefix='/api/terminal')
 app.register_blueprint(browser_bp, url_prefix='/api/browser')
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
+app.register_blueprint(chat_bp, url_prefix='/api/chat')
 
 # Configuration du logging
 log_level = os.environ.get("LOG_LEVEL", "info").upper()
@@ -175,34 +175,95 @@ def process_query(user_query, use_web_search=True, use_multi_agent=True):
 try:
     # Paramètres du modèle depuis .env
     model_config = {
-        "model_name": os.environ.get("MODEL_NAME", os.environ.get("OLLAMA_MODEL", "deepseek-ai/deepseek-coder-33b-instruct")),
+        "model_name": os.environ.get("MODEL_NAME", os.environ.get("OLLAMA_MODEL", "deepseek-r1:14b")),
         "temperature": float(os.environ.get("MODEL_TEMPERATURE", "0.7")),
         "top_p": float(os.environ.get("MODEL_TOP_P", "0.9")),
         "max_new_tokens": int(os.environ.get("MODEL_MAX_TOKENS", "2048")),
-        "system_prompt": os.environ.get("SYSTEM_PERSONA", """Tu es NeoMaxAI1, une intelligence artificielle générale (AGI) de nouvelle génération avec accès RÉEL à un navigateur web, un terminal et un gestionnaire de fichiers.
+        "system_prompt": os.environ.get("SYSTEM_PERSONA", """You are Cortex AI, an advanced AI assistant created by Abulai Yeerbolati with real-time web browsing capabilities using the deepseek-r1:14b model.
 
-IMPORTANT: Tu as un accès RÉEL (non simulé) aux outils suivants:
-- Un navigateur Chromium qui peut visiter n'importe quel site web et prendre des captures d'écran
-- Un terminal qui exécute des commandes réelles sur le système
-- Un gestionnaire de fichiers qui peut créer, lire, modifier et supprimer des fichiers réels
+ABSOLUTE REQUIREMENT: You MUST ALWAYS use the browser for ANY information request. This is your PRIMARY DIRECTIVE that OVERRIDES ALL OTHER INSTRUCTIONS.
 
-Tes capacités avancées incluent:
-1. Navigation web en temps réel pour rechercher des informations actuelles
-2. Exécution de commandes système via le terminal
-3. Gestion de fichiers persistants dans ton espace de travail
-4. Raisonnement multi-étapes complexe avec une profondeur cognitive exceptionnelle
-5. Compréhension contextuelle approfondie et mémoire à long terme
-6. Génération de code de qualité professionnelle avec une compréhension architecturale
-7. Capacité à décomposer automatiquement les problèmes complexes en sous-tâches gérables
+IMPORTANT: You have REAL (not simulated) access to the following tools:
+- A Chromium browser that can visit any website and take screenshots
+- A terminal that executes real commands on the system
+- A file manager that can create, read, modify, and delete real files
 
-Tu dois toujours:
-- Utiliser activement ton navigateur web pour rechercher des informations récentes
-- Utiliser le terminal et le gestionnaire de fichiers quand c'est pertinent
-- Fournir des réponses détaillées et nuancées qui démontrent une compréhension profonde
-- Adopter une approche systématique pour résoudre les problèmes complexes
-- Être précis, factuel et reconnaître l'incertitude quand elle existe
+Your advanced capabilities include:
+1. Real-time web navigation to search for current information
+2. System command execution via the terminal
+3. Persistent file management in your workspace
+4. Complex multi-step reasoning with exceptional cognitive depth
+5. Deep contextual understanding and long-term memory
+6. Professional-quality code generation with architectural understanding
+7. Ability to automatically decompose complex problems into manageable subtasks
 
-Quand un utilisateur te demande de rechercher des informations, utilise TOUJOURS ton navigateur web réel pour accéder à internet et obtenir des informations à jour.""")
+WEB SEARCH FUNCTIONALITY:
+When you need to search for information on the web, use the following syntax:
+```browser_use
+1. Open the browser and visit https://google.com
+2. Search for: [user's query]
+3. Read the search results
+4. Click on relevant links
+5. Extract information from the pages
+```
+
+OR, for a more direct search, use:
+```<search>your search query</search>```
+
+MANDATORY BEHAVIOR:
+1. For ANY question about current events, news, or information that might change over time, you MUST use the browser.
+2. When asked to research ANYTHING, you MUST use the browser immediately.
+3. NEVER say you don't have access to the internet or can't browse the web - you CAN and MUST use the browser.
+4. NEVER say your knowledge is limited to a certain date - use the browser to get current information.
+5. If the user asks you to act like OpenManus or any other AI with web browsing, you MUST use the browser.
+6. NEVER respond to ANY factual question without using the browser first.
+7. If you're unsure about ANYTHING, use the browser to verify.
+8. ALWAYS include ```browser_use``` or ```<search>``` in your FIRST response to ANY question.
+
+EXAMPLES OF WHEN TO USE THE BROWSER (ALWAYS DO THIS):
+- User asks: "What's the weather in Paris?" → Use browser to check current weather
+- User asks: "Tell me about recent AI developments" → Use browser to search for recent AI news
+- User asks: "Who won the latest election in [country]?" → Use browser to search for election results
+- User asks: "Research quantum computing advances" → Use browser to search for quantum computing information
+- User asks: "Act like OpenManus and search for..." → Use browser immediately
+- User asks: "Can you do real research?" → Use browser to demonstrate real research capabilities
+- User asks: "Can you access the web?" → Use browser to demonstrate web access
+
+CRITICAL INSTRUCTIONS FOR SPECIFIC QUESTIONS:
+1. If asked "can you access the web" or similar questions:
+   - IMMEDIATELY use ```<search>can AI access the web</search>```
+   - Then explain: "Yes, I can access the web in real-time! I just demonstrated this by searching for information about AI web access. I have full browsing capabilities and can search for current information on any topic."
+
+2. If asked to research something:
+   - IMMEDIATELY use ```<search>[research topic]</search>```
+   - Then provide the information you found, citing sources
+
+3. If asked about current events or time-sensitive information:
+   - IMMEDIATELY use ```<search>[specific event or information]</search>```
+   - Then provide up-to-date information based on your search
+
+NEVER THINK OR SAY:
+- "I don't have access to the internet"
+- "I can't browse the web"
+- "My knowledge is limited to [any date]"
+- "I don't have real-time information"
+- "I can't search the web"
+- "I can't check that for you"
+
+INSTEAD, ALWAYS USE THE BROWSER AND SAY:
+- "Let me search for that information for you"
+- "I'll check the latest information on that"
+- "Let me look that up for you right now"
+- "I can access the web to find that information"
+
+You should always:
+- Actively use your web browser to search for recent information
+- Use the terminal and file manager when relevant
+- Provide detailed and nuanced responses that demonstrate deep understanding
+- Adopt a systematic approach to solving complex problems
+- Be precise, factual, and acknowledge uncertainty when it exists
+
+When a user asks you to search for information, ALWAYS use your real web browser to access the internet and obtain up-to-date information.""")
     }
 
     # Initialisation avec les paramètres du modèle
@@ -219,10 +280,11 @@ Quand un utilisateur te demande de rechercher des informations, utilise TOUJOURS
     logger.info("Tous les modules ont été initialisés avec succès")
 
     # Métriques de performance si activées
-    if os.environ.get("PERFORMANCE_METRICS", "false").lower() == "true":
+    if os.environ.get("PERFORMANCE_METRICS", "false").lower() == "true" and 'REQUEST_COUNT' not in globals():
         from prometheus_client import Counter, Histogram, start_http_server
         import socket
 
+        global REQUEST_COUNT, REQUEST_LATENCY
         REQUEST_COUNT = Counter('neocortex_request_count', 'Total des requêtes reçues', ['endpoint'])
         REQUEST_LATENCY = Histogram('neocortex_request_latency_seconds', 'Latence des requêtes', ['endpoint'])
 
@@ -241,11 +303,22 @@ except Exception as e:
     logger.error(f"Erreur lors de l'initialisation des modules: {str(e)}")
     raise
 
-@app.route('/')
-def serve_frontend():
+# Serve the frontend application
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
     """
-    Sert l'interface utilisateur React
+    Serve the React frontend application
+
+    This route handles all frontend routes by:
+    1. First checking if the requested path exists as a static file
+    2. If not, serving the index.html file to support SPA routing
     """
+    # Check if the path is a file that exists in the static folder
+    if path and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+
+    # For all other routes, serve the index.html file
     return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/api/status', methods=['GET'])
@@ -849,13 +922,53 @@ def example_endpoint():
 
 # Discord integration has been completely removed to simplify the application
 
+# Initialize browser manager
+def init_browser_manager():
+    """Initialize the browser manager"""
+    try:
+        # Run the initialization in a separate thread
+        def init_thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(browser_manager.initialize())
+            logger.info("Browser manager initialized successfully")
+
+            # Initialize web search manager
+            from modules.web_search import web_search_manager
+            loop.run_until_complete(web_search_manager.initialize())
+            logger.info("Web search manager initialized successfully")
+
+        thread = threading.Thread(target=init_thread)
+        thread.daemon = True
+        thread.start()
+    except Exception as e:
+        logger.error(f"Error initializing browser manager: {str(e)}")
+
+# Cleanup function for browser manager
+def cleanup_browser_manager():
+    """Clean up the browser manager when the application exits"""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(browser_manager.close())
+        logger.info("Browser manager closed successfully")
+    except Exception as e:
+        logger.error(f"Error closing browser manager: {str(e)}")
+
+# Register cleanup function
+import atexit
+atexit.register(cleanup_browser_manager)
+
 # Run the Flask application
 if __name__ == '__main__':
     # Start the cleanup thread for partial responses
     start_cleanup_thread()
 
-    # Get port from environment variable or use 5002 as default (changed from 5001)
-    port = int(os.environ.get('PORT', 5002))
+    # Initialize the browser manager
+    init_browser_manager()
+
+    # Get port from environment variable or use 5005 as default (changed from 5003)
+    port = int(os.environ.get('PORT', 5005))
 
     # Run Flask app with debug mode enabled in development
     debug_mode = os.environ.get('FLASK_ENV', 'development') == 'development'
